@@ -1,0 +1,25 @@
+# Master Architectural Roadmap & Feature Specification
+
+## Core Technical Foundation
+- **Phase 1: Core Coordinates**: Floating Origin system (`double3` backend + localized Unity physics proxy bridge).
+- **Phase 2: Universe & Orbits**: Celestial bodies, gravity wells, Keplerian orbit propagators, time warp math.
+- **Phase 3: Modding Engine & KSP Compat**: KSP1 `.cfg` parser & adapter, runtime `.mu` mesh loader, DDS textures, JSON configs, GLTF loader, Cockpit Prop & MFD Binding API, Custom MFD Programmatic API for Modders, Procedural Wings (P-Wings) dynamic airfoil editor (top-down planform & spanwise cross-section slicing), Procedural Heatshields (P-Heatshields) top-down & cross-section contour editor, Mod Manager UI.
+- **Phase 4: Server & Networking Engine**: Dedicated Headless Server Daemon, Client-Host Co-op Engine, Server Mod Manifest & Auto-Sync, Authority management, Built-in HTTP/WebSocket Telemetry Server & External Web Dashboard Hosting, Client-side video streaming encoder and WebSocket frame broadcaster.
+- **Phase 5: Sub-space & Timeline Engine**: Client/Server state architecture, Warp-Bubble timeline synchronization, multi-agency timeline isolation.
+
+## Systems & Simulation
+- **Phase 6: Vessel Hierarchy & Moddable Resources**: Config-driven part tree, mass/CoM, real-time part welding & mesh merging engine, Fully Moddable, Data-Driven Resource Graph (Custom JSON/CFG-defined resources, multi-resource crossfeed, mass-flow calculations, power grids, and brownout states).
+- **Phase 7: Flight & Hydrodynamic Physics**: Aerodynamic drag (utilizing P-wing airfoil profiles), thrust force, Part Failures, Radiation maps, G-force tracking, Dynamic Weather, Buoyancy displacement, submarine ballast and crush depth, Advanced Thermal Protection System (TPS), stagnation point heating, procedural heatshield ablation, dynamic Center of Mass shifting, thermal soak, and structural failure mechanics.
+- **Phase 8: Crew Health & ECLSS System**: Consumables, ECLSS recycling loops (compatible with mod-added resources), G-force tolerance, radiation dosage, psychological stress, Event-driven Ribbon Engine.
+- **Phase 9: Roster & AI Crew Engine**: Astronaut Complex, Multiplayer Roles, Suit/Appearance Creator, Ribbon System with Role-Locking criteria, salary payroll, Autonomous AI Crew Agents.
+- **Phase 10: Game Mode & Economy**: `GameModeManager` (Sandbox, Career), Shared Agency vs. Multi-Agency Economy, Funds/Science trackers, Build Queue Manager.
+- **Phase 11: Testing & Simulation Mode**: Static Fire Test Rig, Flight Simulation environment, Engineering Data accumulation.
+- **Phase 12: CommNet, Voice Radio & AI ATC**: RemoteTech-style signal delay, directional antenna cones, automated flight computer sequence queue, Co-op Flight Director handoff, Frequency-based radio comms, signal propagation/occlusion, Web-based Air Traffic Control (ATC) console, Mission Control video feeds, Voice-Interactive AI Air Traffic Controllers.
+- **Phase 13: Colonization, Logistics & Bases**: Off-world habitats, runways, extra-planetary launchpads, power/resource grids, TweakScale dynamic part resizing, Parallax procedural surface scatter shaders, Automated Colony Resource Supply & Logistics Route Manager (drone/freighter transit loops).
+
+## Immersive Systems, Automation & Interstellar
+- **Phase 14: Immersive Systems & VR**: Fixed Milestones + Procedural Contracts, Kerbal Alarm Clock, Kerbal Engineer telemetry, RevIVA & FreeIVA traversal, RasterPropMonitor MFDs, Cockpit API, OpenXR stereoscopic rendering, hand-tracking/controller interaction framework, and VR comfort options.
+- **Phase 15: Autopilot & Scripting Engine**: Ascent Guidance, Maneuver Node Executor, Rendezvous/Docking Autopilot, Precision Landing Calculator, Avionics unlock checks, kOS-style Sandboxed Scripting Engine, in-game terminal IDE, and deterministic script VM.
+- **Phase 16: Interstellar Expansion & FTL Systems**: Multi-star system galaxy map, hierarchical barycenter tree, interstellar transfer trajectory solver, Alcubierre Warp Drive physics, warp field coils, energy/exotic fuel consumption grids, gravitational interdiction safety dropouts, and interstellar CommNet relays.
+- **Phase 17: Flight Controls**: SAS/RCS attitude control, staging system, manual inputs, co-pilot control sharing, autopilot command override.
+- **Phase 18: Guidance, Modern UI, Science & Onboarding**: Patched conics visualizer, Navball, Unmanned Mission Control Screen, Crew Health & Telemetry Screen, Colonization UI, Autopilot & Scripting Console, Galaxy Map, Mod Manager UI, Server Browser & Lobby UI, Crew Customization & Ribbon Studio UI, Interactive Cockpit & MFD Interface Engine, External Window & Web Video Stream Viewer UI, Biome/Situation Matrix, FreeIVA Physical Lab Sample Processing, Continuous Long-Term Probes & Server Web Telemetry Science Feeds, Animated Visual Tutorials / Interactive Onboarding Modules, Handcrafted Narrative Discoverables & World Anomalies, Sleek Modern UI Scheme (Glassmorphic dark panels, high-contrast vector gauges, vibrant cyan accents, and clean digital telemetry layouts).
