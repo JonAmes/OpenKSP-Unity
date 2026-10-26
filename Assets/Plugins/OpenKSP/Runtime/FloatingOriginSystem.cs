@@ -13,10 +13,9 @@ using UnityEngine;
 // Allocation-free hot path: Advance reads only pre-allocated WorldState arrays
 // (no Bodies() calls, no LINQ, no boxing).
 // =============================================================================
+[RequireComponent(typeof(FixedUpdateLoop))]
 public class FloatingOriginSystem : MonoBehaviour
 {
-    [RequireComponent(typeof(FixedUpdateLoop))]
-
     // Core fixed timestep (s): dt = 1/1200 per §3 — independent of frame rate.
     public const double FixedDelta = 1.0 / 1200.0;
 

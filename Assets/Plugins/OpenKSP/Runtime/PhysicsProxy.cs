@@ -1,3 +1,4 @@
+using OpenKSP.Core.Celestial;
 using OpenKSP.Core.Math;
 using OpenKSP.Core.World;
 using UnityEngine;
@@ -28,10 +29,9 @@ public struct GlobalRigidBodyState
     }
 }
 
+[RequireComponent(typeof(Rigidbody))]
 public class PhysicsProxy : MonoBehaviour
 {
-    [RequireComponent(typeof(Rigidbody))]
-
     private Rigidbody _rb;
     private FloatingOrigin _origin;
     private GlobalRigidBodyState _state;
@@ -58,13 +58,14 @@ public class PhysicsProxy : MonoBehaviour
         }
 
         // Velocity and angular velocity are pure deltas (no origin offset).
-        _rb.velocity = ToUnityVel(_state.GlobalVelocity);
+        // velocity is obsolete in Unity 6.0 — linearVelocity is the live member.
+        _rb.linearVelocity = ToUnityVel(_state.GlobalVelocity);
         _rb.angularVelocity = ToUnityVel(_state.GlobalAngularVelocity);
 
         if (!isIn)
         {
             // OUT: zero Unity integration; kinematic + discrete collision.
-            _rb.collisionDetection = CollisionDetectionMode.Discrete;
+            _rb.collisionDetectionMode = CollisionDetectionMode.Discrete;
             _rb.isKinematic = true;
         }
     }
@@ -79,7 +80,7 @@ public class PhysicsProxy : MonoBehaviour
 
         return new GlobalRigidBodyState(
             globalPos,
-            FromUnityVel(_rb.velocity),
+            FromUnityVel(_rb.linearVelocity),
             FromUnityVel(_rb.angularVelocity));
     }
 

@@ -11,40 +11,45 @@ using UnityEngine.UI;
 // shows global position, mapping residual, and warp rate — display-only.
 // No per-frame allocations in the sim hot path; per-frame reads use the
 // allocation-free WorldState.Position/Velocity accessors.
+// No Find calls in Update: the system and HUD references are cached in Awake.
 // =============================================================================
+[RequireComponent(typeof(FloatingOriginSystem))]
 public class SolarSystemStub : MonoBehaviour
 {
-    [RequireComponent(typeof(FloatingOriginSystem))]
-
     private PhysicsProxy[] _proxies;
+    private FloatingOriginSystem _system;
+    private Text _hud;
 
     private void Awake()
     {
-        var system = GetComponent<FloatingOriginSystem>();
+        // RequireComponent guarantees FloatingOriginSystem is present when the
+        // component is added, so the Awake-time cache is always valid.
+        _system = GetComponent<FloatingOriginSystem>();
         var loaded = CBodyLoader.Load(); // canonical data file per §6
-        system.Initialize(loaded);
+        _system.Initialize(loaded);
 
         // One render proxy per body (sun, earth, moon), seeded from the live
         // world state via allocation-free Position/Velocity reads.
-        _proxies = new PhysicsProxy[system.BodyCount];
-        for (var i = 0; i < system.BodyCount; i++)
+        _proxies = new PhysicsProxy[_system.BodyCount];
+        for (var i = 0; i < _system.BodyCount; i++)
         {
-            var world = system.World;
+            var world = _system.World;
             var go = new GameObject($"body_{loaded[i].Id}");
             var proxy = go.AddComponent<PhysicsProxy>();
             proxy.Initialize(
-                system.Origin,
+                _system.Origin,
                 new GlobalRigidBodyState(world.Position(i), world.Velocity(i), DVector.Zero));
             _proxies[i] = proxy;
         }
 
-        SetHudText(system);
+        // HUD reference cached once here so Update() performs no Find calls.
+        _hud = GetComponentInChildren<Text>();
+        SetHudText();
     }
 
     private void Update()
     {
-        var system = GetComponent<FloatingOriginSystem>();
-        var world = system.World;
+        var world = _system.World;
 
         // After the sim steps (driven by FixedUpdateLoop.FixedUpdate), re-sync
         // each render transform from the canonical global state through the
@@ -57,20 +62,19 @@ public class SolarSystemStub : MonoBehaviour
             _proxies[i].PreStepSync();
         }
 
-        SetHudText(system);
+        SetHudText();
     }
 
     // HUD: sun global position (at origin), mapping residual, warp rate.
-    private void SetHudText(FloatingOriginSystem system)
+    private void SetHudText()
     {
-        var hud = GetComponentInChildren<Text>();
-        if (hud == null) return;
+        if (_hud == null) return;
 
-        var pos = system.World.Position(0); // sun (at origin)
+        var pos = _system.World.Position(0); // sun (at origin)
         // Mapping residual is structurally zero (canonical invariant, §2.3).
         var residual = 0.0;
-        hud.text = $"pos ({pos.X:F9}, {pos.Y:F9}, {pos.Z:F9}) " +
-                   $"residual {residual:F3} " +
-                   $"warp {system.WarpRate:F2}";
+        _hud.text = $"pos ({pos.X:F9}, {pos.Y:F9}, {pos.Z:F9}) " +
+                    $"residual {residual:F3} " +
+                    $"warp {_system.WarpRate:F2}";
     }
 }
