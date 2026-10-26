@@ -24,6 +24,22 @@ public struct DVector : IEquatable<DVector>
     public static bool operator !=(DVector left, DVector right) => !left.Equals(right);
     public static double operator *(DVector left, DVector right)
         => left.X * right.X + left.Y * right.Y + left.Z * right.Z;
+
+    // Vector addition
+    public static DVector operator +(DVector left, DVector right)
+        => new(left.X + right.X, left.Y + right.Y, left.Z + right.Z);
+
+    // Vector subtraction
+    public static DVector operator -(DVector left, DVector right)
+        => new(left.X - right.X, left.Y - right.Y, left.Z - right.Z);
+
+    // Scalar multiplication
+    public static DVector operator *(DVector left, double scalar)
+        => new(left.X * scalar, left.Y * scalar, left.Z * scalar);
+
+    // Length of a vector.
+    public double Length()
+        => System.Math.Sqrt(X * X + Y * Y + Z * Z);
     public override string ToString() => $"({X:F9}, {Y:F9}, {Z:F9})";
 
     public struct With : IEquatable<With>

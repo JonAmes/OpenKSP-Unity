@@ -42,7 +42,28 @@ public class GravityField
         return new DVector(sumX, sumY, sumZ);
     }
 
-    // 
+    // Acceleration of body index `i` due to every other body j != i,
+    // point-mass: a = Σ_{j≠i} μ_j (r_j − r_i) / |r_j − r_i|³ (attractive, toward j).
+    // Static, allocation-free: reads parallel arrays of positions / mu.
+    public static DVector BodyAccel(D3[] pos, double[] mu, int i)
+    {
+        double sx = 0.0, sy = 0.0, sz = 0.0;
+        for (var j = 0; j < pos.Length; j++)
+        {
+            if (j == i) continue;
+            var dx = pos[j].X - pos[i].X;
+            var dy = pos[j].Y - pos[i].Y;
+            var dz = pos[j].Z - pos[i].Z;
+            var rSq = dx * dx + dy * dy + dz * dz;
+            if (rSq < 1e-18) continue; // avoid singularity
+            var invR3 = mu[j] / (rSq * System.Math.Sqrt(rSq));
+            sx += dx * invR3;
+            sy += dy * invR3;
+            sz += dz * invR3;
+        }
+        return new DVector(sx, sy, sz);
+    }
+
     // Analytic 2-body point-mass acceleration of b2 due to b1:
     // a = mu_b1 · (r_b1 − r_b2) / |r_b2 − r_b1|³ (attractive, toward b1).
     // 
