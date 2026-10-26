@@ -1,0 +1,8 @@
+{
+  "project": {
+    "version": "0.1.0",
+    "description": "OpenKSP Core - Double-precision orbital simulation library"
+  },
+  "dependencies": [],
+  "targetFrameworks": [".NETStandard2.1", "net8.0"]
+}
