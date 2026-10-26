@@ -1,6 +1,6 @@
 # step-01-plan — Phase 1 Core Coordinates
 
-**NEXT: coder — fix the Unity data-path finding (MAJOR) from `docs/steps/step-01-review.md`; then play-test in a licensed Unity.**
+**NEXT: done — data-path MAJOR fixed in the bridge (`SolarSystemStub.Awake` resolves `Application.dataPath + StreamingAssets/Planets/planets.json`); prebuilt `OpenKSP.Core.dll` referenced under `Assets/Plugins/OpenKSP/`. Headless Unity run now compiles clean and exits 0 (license activated on this host). Remaining: human play-test in a licensed Unity editor with the scene set up.**
 
 All 7 tasks complete; Tasks 6–7 re-run after the Unity-side fixes (see `Docs/steps/step-01-unity-fix-report.md`).
 

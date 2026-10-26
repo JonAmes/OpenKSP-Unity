@@ -58,4 +58,5 @@ Carry-over minors unchanged: per-frame HUD string allocation (display-only), unu
 
 Known gap (pre-existing, carried): `OpenKSP.Core` lives outside `Assets/` — the Unity project needs an asmdef/prebuilt-DLL reference plus a valid license before a real Editor run can happen.
 
-**Status:** fixes committed (`c2b6dbf`); Tasks 6 & 7 re-run and deliverables updated; report generated. The remaining MAJOR (data-path under Unity) is the next coder item.
+## Status note (2026-10-26)
+The MAJOR (data path under Unity) is **resolved**: `SolarSystemStub.Awake` now builds the StreamingAssets path from `Application.dataPath` and passes it explicitly to `CBodyLoader.Load(path)` (Core's dotnet default is untouched). The Unity project references Core via a prebuilt `OpenKSP.Core.dll` under `Assets/Plugins/OpenKSP/`. Headless `Unity -batchmode` run now compiles with **zero** errors and exits 0. Carry-over minors remain as listed above (none blocking).

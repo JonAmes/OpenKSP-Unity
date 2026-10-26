@@ -1,3 +1,4 @@
+using System.IO;
 using OpenKSP.Core.Celestial;
 using OpenKSP.Core.Math;
 using UnityEngine;
@@ -25,7 +26,13 @@ public class SolarSystemStub : MonoBehaviour
         // RequireComponent guarantees FloatingOriginSystem is present when the
         // component is added, so the Awake-time cache is always valid.
         _system = GetComponent<FloatingOriginSystem>();
-        var loaded = CBodyLoader.Load(); // canonical data file per §6
+        // The data file lives at Assets/StreamingAssets/Planets/planets.json in the
+        // project. AppDomain.BaseDirectory is not the repo under Unity, so the
+        // bridge resolves the StreamingAssets path explicitly (review MAJOR);
+        // Core's dotnet default remains available for tests.
+        var planetsPath = Path.Combine(
+            Application.dataPath, "StreamingAssets", "Planets", "planets.json");
+        var loaded = CBodyLoader.Load(planetsPath);
         _system.Initialize(loaded);
 
         // One render proxy per body (sun, earth, moon), seeded from the live
