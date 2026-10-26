@@ -1,0 +1,8 @@
+{
+  "units": { "length": "m", "mass": "kg", "time": "s" },
+  "bodies": [
+    { "id": "sun",   "name": "Sun",   "mass": 1.989e30, "radius": 6.96e8, "mu": 1.32712440018e20, "parent": null },
+    { "id": "earth", "name": "Earth", "mass": 5.972e24, "radius": 6.371e6, "mu": 3.986004418e14,  "parent": "sun" },
+    { "id": "moon",  "name": "Moon",  "mass": 7.342e22, "radius": 1.7374e6, "mu": 4.9048695e12,  "parent": "earth" }
+  ]
+}
