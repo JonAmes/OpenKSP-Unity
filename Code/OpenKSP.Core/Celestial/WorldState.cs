@@ -49,6 +49,11 @@ public sealed class WorldState
         }
     }
 
+    // Allocation-free reads of the live per-body state (the only no-alloc seam for the
+    // Unity bridge; `Bodies` above allocates and must not be called per frame).
+    public D3 Position(int index) => _pos[index];
+    public DVector Velocity(int index) => _vel[index];
+
     // Construct from immutable body list (positions/velocities/mu baked in).
     public WorldState(IEnumerable<CBody> bodies)
     {
