@@ -1,6 +1,8 @@
 # step-01-plan — Phase 1 Core Coordinates
 
-**NEXT: coder, task 1**
+**NEXT: coder — fix the Unity data-path finding (MAJOR) from `docs/steps/step-01-review.md`; then play-test in a licensed Unity.**
+
+All 7 tasks complete; Tasks 6–7 re-run after the Unity-side fixes (see `Docs/steps/step-01-unity-fix-report.md`).
 
 | # | Task | Files | Test | Owner | Status |
 |---|------|-------|------|-------|--------|

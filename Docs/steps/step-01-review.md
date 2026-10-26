@@ -1,58 +1,58 @@
-# Step 1 — Cold Review (Task 7)
+# Step 1 — Cold Review (Task 7, re-run)
 
-**Reviewer** · basis `Docs/agents/reviewer.md`, `git diff 3f953ed..main` (41 files, 2,589 lines), `Docs/steps/step-01.md`, `step-01-report.md`.
-Fresh gate on this pass: `dotnet test Code/OpenKSP.Core.Tests -warnaserror` → **Passed 19, Failed 0, Skipped 0** (1 s).
+**Reviewer** · basis `Docs/agents/reviewer.md`, `git diff 3f953ed..main` (41 files, 2,632 lines, incl. `c2b6dbf`), `Docs/steps/step-01.md`, `step-01-report.md`.
+Fresh gate on this pass: `dotnet test Code/OpenKSP.Core.Tests -warnaserror` → **Passed 19, Failed 0, Skipped 0** (1 s); build clean `-warnaserror`.
 
-## VERDICT: PASS
+## VERDICT: CHANGES NEEDED (1 MAJOR; no blockers on the sim side)
 
-All seven checklist points are met. The findings below are cosmetic/minor; none is a blocker.
+The previous MAJOR (Find-in-Update) is resolved by `c2b6dbf`. Cold-reading the fixed tree surfaces **one new MAJOR**, a runtime defect for the Unity play-test; the remainder are carry-over minors.
 
 ## Findings
 
-### [MAJOR] SolarSystemStub.cs:46,64 — component lookups inside `Update()` (Find-in-Update)
-`Update()` calls `GetComponent<FloatingOriginSystem>()` (line 46) and, via `SetHudText`, `GetComponentInChildren<Text>()` (line 66) **every frame**. The §7 rule is "no Find calls in Update." Both are per-frame component lookups.
-Fix: cache the `FloatingOriginSystem` reference and the HUD `Text` once in `Awake` (already available there) and reuse the fields in `Update`.
+### [MAJOR] CBodyLoader.cs:24-44 — default path resolution does not work under Unity
+`ResolveDefaultPath()` walks 5 parent levels up from `AppDomain.CurrentDomain.BaseDirectory` (the dotnet build output dir → repo root) and then reads `Assets/StreamingAssets/Planets/planets.json`. In the Unity Editor/player, `AppDomain.CurrentDomain.BaseDirectory` is the editor/`game.data` directory, **not** the repo, so `CBodyLoader.Load(null)` throws `FileNotFoundException` in `SolarSystemStub.Awake` and the scene breaks before any frame.
+Fix: the bridge (not Core) should resolve the StreamingAssets path in Unity — e.g. `Path.Combine(Application.dataPath, "StreamingAssets", "Planets", "planets.json")` in `SolarSystemStub.Awake` and pass it to `CBodyLoader.Load(path)`; keep Core's dotnet default for tests, or make the dotnet branch explicitly a fallback.
 
-### [MINOR] SolarSystemStub.cs:72-74 — per-frame string allocation in `Update()`
-`SetHudText` interpolates a fresh string (`$"..."`) every frame — a per-frame allocation. It is display-only, not the sim hot path, so it does not break the no-alloc sim rule, but still re-allocates each frame.
-Fix: build the HUD text into a reused `StringBuilder`, or only refresh when `WarpRate`/residual actually changes.
+### [RESOLVED — was MAJOR] SolarSystemStub.cs — Find-in-Update
+`c2b6dbf` caches `_system` and `_hud` in `Awake` (valid via `[RequireComponent]`) and `Update()` now performs **zero** component lookups. Confirmed by re-read of the fixed file.
 
-### [MINOR] GravityField.cs:1 — unused `using System.Linq;`
-No LINQ call sites exist in `Code/OpenKSP.Core/` (source-only grep, `.cs`). Cosmetic.
+### [MINOR — carry-over] SolarSystemStub.cs:68-71 — per-frame HUD string allocation
+`SetHudText` still interpolates a fresh string every frame (display-only, not sim hot path).
+Fix: reuse a `StringBuilder`, or refresh only when `WarpRate`/`Position(0)` actually changed.
+
+### [MINOR — carry-over] GravityField.cs:1 — unused `using System.Linq;`
+No LINQ call sites in Core.
 Fix: remove the import.
 
-### [MINOR] FloatingOriginSystem.cs:58 — `IEnumerable<CBody>` could be `IReadOnlyList<CBody>`
-`CBodyLoader.Load` returns `IImmutableList<CBody>` (satisfies `IReadOnlyList` — verified by a `dotnet` compile probe). Narrowing the parameter matches the real return type and keeps `.Count`/indexing available without a `List` materialisation at init.
-Fix: change the parameter to `IReadOnlyList<CBody>`.
+### [MINOR — carry-over] D3.cs (Coordinates.Scale) — hardcoded `1.0` with a dangling "will be set" comment
+Identity works today (FloatingOrigin carries the offset; T10 verifies composition ≤ 1e-6), but the comment reads as unfinished work.
+Fix: drop the comment or implement the scale mapping so the claim is true.
 
-### [MINOR] D3.cs:98,105 — `Coordinates.Scale` is a hardcoded `1.0` with a dangling "will be set" comment
-`Scale = 1.0` with comment "Will be set from origin-based mapping" signals an incomplete mapping. Identity works today (FloatingOrigin carries the offset; T10 verifies composition ≤ 1e-6), so it is not a correctness failure, but the comment reads as unfinished work.
-Fix: either drop the "will be set" comment or implement the scale mapping so the comment is true.
+### [MINOR — carry-over] WorldState.cs:38-49 — `Bodies` property allocates on every access
+Allocating getter; bridge and tests use the index accessors. A future per-frame caller would silently allocate.
+Fix: keep it read-time-only with a guard note, or remove it in favour of `Position(i)`/`Velocity(i)`.
 
-### [MINOR] WorldState.cs:38-49 — `Bodies` property allocates on every access and is easy to misuse
-`Bodies` builds a fresh `CBody[]` per get, and the bridge hot path is documented to use `Position(i)`/`Velocity(i)`. Nothing misuses it today (bridge + tests use the index accessors), but a future per-frame caller would silently allocate.
-Fix: keep a guard note / make it clearly read-time-only, or remove the property in favour of the index accessors.
+### [MINOR — carry-over] FloatingOriginSystem.cs:33 — `SetWarpRate` is a public mid-frame API
+Warp changes apply at the next fixed step, so behaviour is safe; the API is not gated against `Update` callers.
+Fix: document the step-boundary semantics or fold it behind the fixed-update cadence.
 
-### [MINOR] FloatingOriginSystem.cs:34 — `SetWarpRate` exposes a mid-frame public API
-`Advance` (called by FixedUpdateLoop) is the step entry; a caller invoking `SetWarpRate` from `Update` would still only apply at the next fixed step (§3 boundary), so it is safe, but the API is not gated against use from a non-fixed callback. Minor.
-Fix: document that warp changes take effect at the next fixed step, or fold it behind the fixed-update cadence.
-
-### [MINOR] OrbitPropagator.cs:16-27 — scratch arrays sized from `new List`-free manual count
-`OrbitPropagator` counts bodies with a manual `foreach` loop instead of taking `.Count`. Allocation-free and correct, but the manual count is a small readability blemish given `IEnumerable<CBody>` is materialised elsewhere.
-Fix: accept `IReadOnlyList<CBody>` (or `CBody[]`) and use `.Length`/`.Count` directly.
+### [MINOR — carry-over] OrbitPropagator.cs:16-27 — body count via manual `foreach` instead of `.Count`
+Allocation-free and correct; small readability blemish.
+Fix: take `IReadOnlyList<CBody>` (or `CBody[]`) and use `.Count`/`.Length`.
 
 ## Cross-checks against the §2–§7 rules and checklist
 
-- **Sim/View split — clean.** `Code/OpenKSP.Core/` has **zero** `UnityEngine` references (source-only grep). All double math lives in the Core; the bridge reads it through allocation-free `WorldState.Position/Velocity`.
-- **Precision — correct.** World positions/velocities/time are `double` (`D3`, `WorldState._simTimeSeconds`); only the View local frame is `float` (`F3`).
-- **Correctness — correct.** RK4 is the standard 4-stage combine (`OrbitPropagator.Step`); N-body `BodyAccel` is attractive and allocation-free; singularity guards present (`rSq` thresholds in `GravityField`); `TotalEnergy` PE term simplifies to `−μ_iμ_j/(G·r)`; `FloatingOrigin.SlideTo` preserves `LocalRadius`; composition `ToGlobal(ToLocal(p)) == p` verified to ≤ 1e-6 (T10).
-- **Determinism — exact.** T9 asserts **bit-level** snapshot equality (`snapA == snapB`), not tolerance, on a non-trivial two-body run. PASS.
-- **Tests check behaviour with independent expectations.** T3 recomputes N-body acceleration by hand and compares to `GravityField.Acceleration`; T8 round-trips Kepler elements (self-consistency, not copied from the code). 19/19, 0 skipped. No weakened or deleted tests.
-- **Unity safety — one real issue (the MAJOR above).** C# 9 only (`LangVersion 9`, builds clean under `-warnaserror`); no hand-edited `.unity/.prefab/.meta`; sim hot path (`Advance`, `Step`, `PreStepSync`) is allocation-free. The only Update-time lookups are the MAJOR.
-- **Readability — good.** Names, sizes, and "why" comments are clear throughout; comments explain intent (e.g. IN→MovePosition, OUT→kinematic, scratch pre-allocation).
+- **Spec conformance — yes.** Core sim per §2–§9; bridge per §3/§7; probe work is scratch-only (not committed). Nothing beyond the spec.
+- **Sim/View split — clean.** `Code/OpenKSP.Core/` has **zero** `UnityEngine` references (source-only grep, 0 hits). All double math in Core; View reads via allocation-free accessors.
+- **Precision — correct.** World positions/velocities/time are `double` (`D3`, `WorldState._simTimeSeconds`); local float zone is `F3` only.
+- **Correctness — correct.** RK4 combine; attractive N-body accel with singularity guards; `TotalEnergy` PE term `−μ_iμ_j/(G·r)`; composition `ToGlobal(ToLocal(p)) == p` ≤ 1e-6 (T10).
+- **Tests — behaviour-checked, independent expectations.** T3 recomputes N-body accel by hand; T8 round-trips Kepler elements; T9 asserts **bit-level** snapshot equality, not tolerance. 19/19, 0 skipped, deterministic twice. No weakened or deleted tests.
+- **Unity safety — C# 9 only, no per-frame alloc in sim; Find-in-Update fixed.** The probe against the real `UnityEngine.dll`/`CoreModule`/`UnityEngine.UI.dll` assemblies confirmed the fixed bridge compiles with **no genuine errors** (CS0592/CS0246/CS1061/CS0618 all eliminated; residual probe diagnostics are harness artifacts: Unity's façade→module forwarder reference and the implicit BCL, both automatic in real Unity). The one Unity-side runtime hole is the MAJOR above (data path).
+- **Readability — good.** Comments explain why; the fixes carry one-line rationale inline (e.g. "velocity is obsolete in Unity 6.0 — linearVelocity is the live member").
 
 ## Questions for the coder
 
-1. SolarSystemStub: is the HUD `Text` guaranteed to be present at `Awake` (i.e. a child GO created before `Awake` runs)? If yes, caching the reference is trivial; if the HUD GO is created later, we need a different anchor.
-2. `Coordinates.Scale`: is the identity (scale 1.0) the final Phase 1 intent, or should it be driven by the origin mapping? (Drives finding #5.)
-3. `WorldState.Bodies`: should it be removed in Phase 1 to force the index accessors, or kept as a documented read-time-only seam?
+1. **Data path (drives the MAJOR):** who owns StreamingAssets path resolution — Core fallback or bridge? Suggested: bridge builds the path in `Awake` and passes it explicitly to `CBodyLoader.Load(path)`; Core's dotnet default stays for tests.
+2. **Unity assembly surface:** `OpenKSP.Core` lives outside `Assets/`. How will the Unity project reference it (asmdef + prebuilt DLL under `Assets/Plugins/OpenKSP/`)? Needed before the human play-test can run.
+3. `Coordinates.Scale` identity vs origin-driven mapping (carry-over)?
+4. `WorldState.Bodies`: keep as documented read-time-only seam or remove (carry-over)?
