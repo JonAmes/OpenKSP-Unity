@@ -53,7 +53,7 @@ public struct D3 : IEquatable<D3>
            System.Math.Abs(Y - other.Y) < 1e-14 && 
            System.Math.Abs(Z - other.Z) < 1e-14;
 
-    public override int GetHashCode() => HashCode.Combine(X, Y, Z);
+    public override int GetHashCode() => Hash32.Triple(X, Y, Z);
     
     public static bool operator ==(D3 left, D3 right) => left.Equals(right);
     
@@ -82,7 +82,7 @@ public struct F3 : IEquatable<F3>
            System.Math.Abs(Y - other.Y) < 1e-4f && 
            System.Math.Abs(Z - other.Z) < 1e-4f;
 
-    public override int GetHashCode() => HashCode.Combine(X, Y, Z);
+    public override int GetHashCode() => Hash32.Triple((double)X, (double)Y, (double)Z);
     
     public static bool operator ==(F3 left, F3 right) => left.Equals(right);
     

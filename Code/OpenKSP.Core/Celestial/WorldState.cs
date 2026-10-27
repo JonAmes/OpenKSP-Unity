@@ -184,9 +184,10 @@ public readonly struct WorldSnapshot : IEquatable<WorldSnapshot>
     public static bool operator !=(WorldSnapshot left, WorldSnapshot right) => !left.Equals(right);
 
     // Consistent with bit-exact Equals: equal snapshots hash equal.
+    // Uses HashAccum (mscorlib facades only) since System.HashCode requires netstandard2.1+.
     public override int GetHashCode()
     {
-        var h = new HashCode();
+        var h = new HashAccum();
         h.Add(SimTime);
         h.Add(BodyCount);
         for (var i = 0; i < BodyCount; i++)
@@ -196,7 +197,7 @@ public readonly struct WorldSnapshot : IEquatable<WorldSnapshot>
             h.Add(p.X); h.Add(p.Y); h.Add(p.Z);
             h.Add(v.X); h.Add(v.Y); h.Add(v.Z);
         }
-        return h.ToHashCode();
+        return h.ToHash();
     }
 
     public override string ToString()

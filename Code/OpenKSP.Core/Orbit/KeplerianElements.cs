@@ -77,8 +77,10 @@ namespace OpenKSP.Core.Orbit
             double eMag = System.Math.Sqrt(ex * ex + ey * ey + ez * ez);
             double px = ex / eMag, py = ey / eMag, pz = ez / eMag;
 
-            // inclination
-            double i = System.Math.Acos(System.Math.Clamp(hz, -1.0, 1.0));
+            // Math.Clamp needs .NET 6+ / netstandard2.1; Unity's Mono runtime does not
+            // surface it as a facade, so clamp inline (Acosh domain: |h.z| <= 1).
+            double hzC = hz < -1.0 ? -1.0 : (hz > 1.0 ? 1.0 : hz);
+            double i = System.Math.Acos(hzC);
 
             // ascending node; node unit n
             double omega = 0.0;

@@ -19,7 +19,7 @@ public struct DVector : IEquatable<DVector>
     public bool Equals(DVector other) => System.Math.Abs(X - other.X) < 1e-15 &&
                                             System.Math.Abs(Y - other.Y) < 1e-15 &&
                                             System.Math.Abs(Z - other.Z) < 1e-15;
-    public override int GetHashCode() => HashCode.Combine(X, Y, Z);
+    public override int GetHashCode() => Hash32.Triple(X, Y, Z);
     public static bool operator ==(DVector left, DVector right) => left.Equals(right);
     public static bool operator !=(DVector left, DVector right) => !left.Equals(right);
     public static double operator *(DVector left, DVector right)
@@ -52,23 +52,25 @@ public struct DVector : IEquatable<DVector>
 
         public bool Equals(With other) => X == other.X && Y == other.Y && Z == other.Z;
         public override bool Equals(object? o) => o is With w && Equals(w);
-        public override int GetHashCode() => System.HashCode.Combine(X, Y, Z);
+        public override int GetHashCode() => Hash32.Triple(X, Y, Z);
     }
 }
 
 // Celestial body with gravity parameter stored directly.
+// readonly fields (no `init;`) so the DLL carries only netstandard2.0 facades
+// that Unity's Mono runtime resolves.
 public readonly struct CBody : IEquatable<CBody>
 {
-    public string Id { get; init; }
-    public string Name { get; init; }
-    public D3 Position { get; init; }
-    public DVector Velocity { get; init; }
+    public readonly string Id;
+    public readonly string Name;
+    public readonly D3 Position;
+    public readonly DVector Velocity;
 
     // Standard gravitational parameter GM in m³/s².
-    public double Mu3PerS2 { get; init; }
+    public readonly double Mu3PerS2;
 
     // Radius in m (per §6 schema; used by later phases).
-    public double Radius { get; init; }
+    public readonly double Radius;
 
     // Mass in kg, derived from mu (mu / G).
     public double Mass => Mu3PerS2 / 6.67430e-11;
@@ -93,7 +95,8 @@ public readonly struct CBody : IEquatable<CBody>
 
     public override bool Equals(object? o) => o is CBody b && Id == b.Id;
     public bool Equals(CBody other) => Id == other.Id;
-    public override int GetHashCode() => HashCode.Combine(Id);
+    // Consistent with Equals (which keys on Id only): equal bodies hash equal.
+    public override int GetHashCode() => Id.GetHashCode();
     public static bool operator ==(CBody left, CBody right) => left.Equals(right);
     public static bool operator !=(CBody left, CBody right) => !left.Equals(right);
 }

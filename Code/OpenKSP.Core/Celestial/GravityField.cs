@@ -3,7 +3,6 @@ using OpenKSP.Core.Celestial;
 using OpenKSP.Core.Math;
 using System;
 using System.Collections.Generic;
-using System.Collections.Immutable;
 
 namespace OpenKSP.Core.Celestial {
 
@@ -11,13 +10,17 @@ namespace OpenKSP.Core.Celestial {
 // Uses the body's stored Mu (GM) directly — no need to know G.
 public class GravityField
 {
-    private readonly ImmutableList<CBody> _bodies;
+    private readonly CBody[] _bodies;
 
-    public int Count => _bodies.Count;
-    public CBody[] Bodies => _bodies.ToArray();
+    public int Count => _bodies.Length;
+    public CBody[] Bodies => _bodies;
 
-    // <param name="bodies">Immutable list of bodies with positions/velocities.</param>
-    public GravityField(IEnumerable<CBody> bodies) => _bodies = bodies.ToImmutableList();
+    // <param name="bodies">List of bodies with positions/velocities (copied into an immutable array).</param>
+    public GravityField(IEnumerable<CBody> bodies)
+    {
+        var list = new List<CBody>(bodies);
+        _bodies = list.ToArray();
+    }
 
     // Acceleration at `pos` due to all bodies (point-mass: a = μ·r_vec/r³, no G needed).
     public DVector Acceleration(DVector pos)

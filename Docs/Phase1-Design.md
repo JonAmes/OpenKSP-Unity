@@ -58,7 +58,7 @@ Per fixed step:
 
 ## 4. Pure C# core library — `OpenKSP.Core`
 
-**Layout (no UnityEngine refs, .NET 8, `-warnaserror`):**
+**Layout (no UnityEngine refs, netstandard2.0, `-warnaserror`):**
 ```
 OpenKSP.Core/
   Math/D3.cs                    // double vector: +,-,*,·,×, lerp, ToFloat/FromFloat
@@ -75,7 +75,8 @@ OpenKSP.Core/
 ```
 
 Constraints:
-- **No allocations in the hot path**: value types only, no LINQ/boxing; `ImmutableArray<CBody>` for the body list.
+- **Target `netstandard2.0`, not `.NET 8`** — this is the fix for the original `TypeLoadException` in `SolarSystemStub.Awake`. Unity loads the Core DLL via its bundled Mono (6.13.0, mscorlib facades); a net8.0 DLL references `System.IO.File` against `System.Runtime, Version=8.0.0.0`, which Unity cannot resolve at JIT time. netstandard2.0 emits only mscorlib-resolvable facades. It also bans the .NET 6+ features Unity's Mono lacks: no `System.Text.Json` (hand-rolled JSON parser in `CBodyLoader`), no `init;` on readonly structs, no `IImmutableList`/`System.Collections.Immutable`, no `System.HashCode`, no `Math.Clamp`. Hashing uses `Hash32`/`HashAccum` (`Math/Hash32.cs`).
+- **No allocations in the hot path**: value types only, no LINQ/boxing; `CBody[]` for the body list (immutable snapshot copy, not `IImmutableList`).
 - **Single-threaded contract**: no thread-safety guarantee; `WorldState` is only stepped on one thread; `ToSnapshot()/FromSnapshot()` is the only Phase-4 extension seam.
 - **No wall-clock reads anywhere in Core.**
 - **Determinism:** identical inputs → bit-identical outputs (verified by T9).
@@ -84,7 +85,7 @@ Constraints:
 
 ```csharp
 // Core (pure)
-var g = new GravityField(bodies);            // bodies: ImmutableArray<CBody>
+var g = new GravityField(bodies);            // bodies: IEnumerable<CBody> (copied into an array)
 var a = g.Acceleration(pos);                // D3
 world.Step(dt);                             // advances all states
 var local = origin.ToLocal(pos);            // Vector3 (float)
@@ -151,7 +152,7 @@ Excluded and documented: rotational kinetic energy, gravitational self-energy, i
 
 ## 10. Delivery checklist (this iteration)
 
-- [ ] `OpenKSP.Core` compiles under .NET 8, zero UnityEngine refs, `-warnaserror` clean
+- [ ] `OpenKSP.Core` compiles under **netstandard2.0**, zero UnityEngine refs, `-warnaserror` clean (the net8.0 `System.Runtime, Version=8.0.0.0` typeref that broke `SolarSystemStub.Awake` is gone — verified by a Mono JIT run of the exact `Awake` load path)
 - [ ] T1–T10 pass via `dotnet test` on this host
 - [ ] Unity-side MonoBehaviours written (no editor on this host; code must be Unity 6.0.0f1 / URP 17.6 compatible)
 - [ ] `planets.json` + `CBodyLoader` per §6

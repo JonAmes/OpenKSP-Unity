@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Collections.Immutable;
 using System.IO;
-using System.Text.Json;
 using OpenKSP.Core.Celestial;
 using OpenKSP.Core.Math;
 
@@ -13,28 +11,33 @@ namespace OpenKSP.Core.Celestial
     //   { "units": {...},
     //     "bodies": [ { "id", "name", "mass", "radius", "mu", "parent" } ] }
     // Required: id, name, mass, radius, mu (GM, m³/s²).
-    // Optional: parent (hierarchy, Phase 2). Derived values are computed in
-    // Core from mu, never stored in the JSON.
+    // Optional: parent (hierarchy, Phase 2).
+    //
+    // Hand-rolled minimal JSON parser (no System.Text.Json): Unity's Mono runtime
+    // does not ship System.Text.Json, and the netstandard2.0 target must stay free
+    // of any assembly Unity cannot resolve at JIT time. Only fixed mscorlib
+    // facades (System.IO.File, System.Text.*) are used here.
     public static class CBodyLoader
     {
         private const string PlanetsJsonRelativePath =
             "Assets/StreamingAssets/Planets/planets.json";
 
         // Load bodies from the canonical data file.
-        // <param name="path">Absolute path, or null for the default <c>Assets/StreamingAssets/Planets/planets.json</c> (resolved relative to the repo root).</param>
-        // <returns>Immutable list of bodies. Throws <see cref="InvalidDataException"/> for schema violations.</returns>
-        public static IImmutableList<CBody> Load(string? path = null)
+        // <param name="path">Absolute path, or null for the default
+        // <c>Assets/StreamingAssets/Planets/planets.json</c> (resolved relative to the repo root).</param>
+        // <returns>Immutable view of bodies. Throws <see cref="InvalidDataException"/> for schema violations.</returns>
+        public static IReadOnlyList<CBody> Load(string? path = null)
         {
             var resolvedPath = path ?? ResolveDefaultPath();
             var json = File.ReadAllText(resolvedPath);
             return Parse(json);
         }
 
-        // Default path relative to the repo root (AppDomain base dir walked up 4 levels).
+        // Default path relative to the repo root (AppDomain base dir walked up 5 levels).
         public static string ResolveDefaultPath()
         {
-            // AppDomain.BaseDirectory is the build output dir (…/Code/OpenKSP.Core(.Tests)/bin/Debug/net8.0);
-            // five parents reach the repo root: net8.0 -> Debug -> bin -> OpenKSP.Core(.Tests) -> Code -> root.
+            // AppDomain.BaseDirectory is the build output dir
+            // (…/Code/OpenKSP.Core(.Tests)/bin/Debug/<tfm>); five parents reach the repo root.
             var dir = new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);
             for (var i = 0; i < 5 && dir != null; i++)
             {
@@ -45,58 +48,49 @@ namespace OpenKSP.Core.Celestial
 
         // Parse a §6-schema JSON body string.
         // Position/velocity are left at origin; world state (task 3) initializes them.
-        public static IImmutableList<CBody> Parse(string json)
+        public static IReadOnlyList<CBody> Parse(string json)
         {
-            using var doc = JsonDocument.Parse(json);
-            var root = doc.RootElement;
+            var i = 0;
+            var root = Json.ParseValue(json, ref i);
+            Json.SkipWs(json, ref i);
+            if (root.Kind != Json.Kind.Object)
+                throw new InvalidDataException("planets.json: root document must be a JSON object.");
 
-            if (!root.TryGetProperty("bodies", out var bodiesEl) ||
-                bodiesEl.ValueKind != JsonValueKind.Array)
+            if (!root.TryGetMember("bodies", out var bodies))
+                throw new InvalidDataException("planets.json: 'bodies' member is required.");
+            if (bodies.Kind != Json.Kind.Array)
+                throw new InvalidDataException("planets.json: 'bodies' must be a JSON array.");
+
+            var list = new List<CBody>(bodies.ItemCount);
+            for (var s = 0; s < bodies.ItemCount; s++)
             {
-                throw new InvalidDataException("planets.json: 'bodies' array is required.");
-            }
+                var el = bodies.Element(s);
+                if (el.Kind != Json.Kind.Object)
+                    throw new InvalidDataException("planets.json: each body must be a JSON object.");
+                var id = ReadRequiredString(el, "id");
+                var name = ReadRequiredString(el, "name");
+                ReadRequiredDouble(el, "mass");
+                var radius = ReadRequiredDouble(el, "radius");
+                var mu = ReadRequiredDouble(el, "mu");
 
-            var list = new List<CBody>();
-            foreach (var bodyEl in bodiesEl.EnumerateArray())
-            {
-                var id = ReadRequiredString(bodyEl, "id");
-                var name = ReadRequiredString(bodyEl, "name");
-                ReadRequiredDouble(bodyEl, "mass");
-                var radius = ReadRequiredDouble(bodyEl, "radius");
-                var mu = ReadRequiredDouble(bodyEl, "mu");
-
-                list.Add(new CBody
-                {
-                    Id = id,
-                    Name = name,
-                    Position = D3.Zero,
-                    Velocity = DVector.Zero,
-                    Radius = radius,
-                    Mu3PerS2 = mu
-                });
-
+                list.Add(new CBody(id, name, D3.Zero, DVector.Zero, radius, mu));
                 // Optional 'parent' is accepted but unused in Phase 1 (Phase 2 hierarchy).
             }
-
-            return list.ToImmutableList();
+            return list;
         }
 
-        private static string ReadRequiredString(JsonElement obj, string prop)
+        private static string ReadRequiredString(Json.Value obj, string prop)
         {
-            if (!obj.TryGetProperty(prop, out var el) || el.ValueKind != JsonValueKind.String)
-            {
+            if (!obj.TryGetMember(prop, out var el) || el.Kind != Json.Kind.String)
                 throw new InvalidDataException($"planets.json: body property '{prop}' (string) is required.");
-            }
-            return el.GetString()!;
+            return el.Text!;
         }
 
-        private static double ReadRequiredDouble(JsonElement obj, string prop)
+        private static double ReadRequiredDouble(Json.Value obj, string prop)
         {
-            if (!obj.TryGetProperty(prop, out var el) || el.ValueKind != JsonValueKind.Number)
-            {
+            if (!obj.TryGetMember(prop, out var el) || el.Kind != Json.Kind.Number)
                 throw new InvalidDataException($"planets.json: body property '{prop}' (number) is required.");
-            }
-            return el.GetDouble();
+            return el.Num;
         }
 
         // Find a body by ID in a loaded collection.
@@ -107,6 +101,226 @@ namespace OpenKSP.Core.Celestial
                 if (b.Id == id) return b;
             }
             return null;
+        }
+
+        // =====================================================================
+        // Minimal strict JSON value model + recursive-descent parser.
+        // Uses only mscorlib facades resolvable by Unity's Mono runtime.
+        // =====================================================================
+        internal static class Json
+        {
+            internal enum Kind { Object, Array, String, Number, Bool, Null }
+
+            internal sealed class Pair
+            {
+                internal string Name = "";
+                internal Value Value = null!;
+            }
+
+            internal sealed class Value
+            {
+                internal Kind Kind;
+                internal string? Text;        // String payload
+                internal double Num;          // Number payload
+                internal bool Bool;           // Bool payload
+                internal List<Pair>? Members; // Object members (ordered)
+                internal List<Value>? Items;  // Array elements
+
+                public bool TryGetMember(string name, out Value value)
+                {
+                    value = null!;
+                    if (Members == null) return false;
+                    foreach (var m in Members)
+                    {
+                        if (m.Name == name) { value = m.Value; return true; }
+                    }
+                    return false;
+                }
+
+                public Value Element(int index) => Items![index];
+                public int ItemCount => Items!.Count;
+            }
+
+            public static Value ParseValue(string s, ref int i)
+            {
+                SkipWs(s, ref i);
+                if (i >= s.Length)
+                    throw new FormatException("JSON: unexpected end of input.");
+                char c = s[i];
+                if (c == '{') return ParseObject(s, ref i);
+                if (c == '[') return ParseArray(s, ref i);
+                if (c == '"') return ParseString(s, ref i);
+                if (c == 't' || c == 'f') return ParseBool(s, ref i);
+                if (c == 'n') return ParseNull(s, ref i);
+                return ParseNumber(s, ref i);
+            }
+
+            public static void SkipWs(string s, ref int i)
+            {
+                while (i < s.Length)
+                {
+                    char c = s[i];
+                    if (c == ' ' || c == '\t' || c == '\n' || c == '\r') i++;
+                    else break;
+                }
+            }
+
+            private static Value ParseObject(string s, ref int i)
+            {
+                i++; // '{'
+                var members = new List<Pair>();
+                SkipWs(s, ref i);
+                if (i < s.Length && s[i] == '}')
+                {
+                    i++;
+                    return new Value { Kind = Kind.Object, Members = members };
+                }
+                while (true)
+                {
+                    SkipWs(s, ref i);
+                    var nameValue = ParseString(s, ref i);
+                    SkipWs(s, ref i);
+                    if (i >= s.Length || s[i] != ':')
+                        throw new FormatException("JSON: expected ':' after a property name.");
+                    i++; // ':'
+                    members.Add(new Pair { Name = nameValue.Text!, Value = ParseValue(s, ref i) });
+                    SkipWs(s, ref i);
+                    if (i >= s.Length)
+                        throw new FormatException("JSON: unexpected end of input in object.");
+                    if (s[i] == ',') { i++; continue; }
+                    if (s[i] == '}') { i++; break; }
+                    throw new FormatException("JSON: expected ',' or '}' in object.");
+                }
+                return new Value { Kind = Kind.Object, Members = members };
+            }
+
+            private static Value ParseArray(string s, ref int i)
+            {
+                i++; // '['
+                var items = new List<Value>();
+                SkipWs(s, ref i);
+                if (i < s.Length && s[i] == ']')
+                {
+                    i++;
+                    return new Value { Kind = Kind.Array, Items = items };
+                }
+                while (true)
+                {
+                    items.Add(ParseValue(s, ref i));
+                    SkipWs(s, ref i);
+                    if (i >= s.Length)
+                        throw new FormatException("JSON: unexpected end of input in array.");
+                    if (s[i] == ',') { i++; continue; }
+                    if (s[i] == ']') { i++; break; }
+                    throw new FormatException("JSON: expected ',' or ']' in array.");
+                }
+                return new Value { Kind = Kind.Array, Items = items };
+            }
+
+            private static Value ParseString(string s, ref int i)
+            {
+                i++; // opening '"'
+                var sb = new System.Text.StringBuilder();
+                while (true)
+                {
+                    if (i >= s.Length)
+                        throw new FormatException("JSON: unterminated string.");
+                    char c = s[i++];
+                    if (c == '"') break;
+                    if (c != '\\') { sb.Append(c); continue; }
+                    if (i >= s.Length)
+                        throw new FormatException("JSON: unterminated escape in string.");
+                    char e = s[i++];
+                    switch (e)
+                    {
+                        case '"': sb.Append('"'); break;
+                        case '\\': sb.Append('\\'); break;
+                        case '/': sb.Append('/'); break;
+                        case 'b': sb.Append('\b'); break;
+                        case 'f': sb.Append('\f'); break;
+                        case 'n': sb.Append('\n'); break;
+                        case 'r': sb.Append('\r'); break;
+                        case 't': sb.Append('\t'); break;
+                        case 'u':
+                            if (i + 4 > s.Length)
+                                throw new FormatException("JSON: bad \\u escape.");
+                            int code = System.Convert.ToInt32(s.Substring(i, 4), 16);
+                            i += 4;
+                            sb.Append((char)code);
+                            break;
+                        default:
+                            throw new FormatException("JSON: bad escape character '" + e + "'.");
+                    }
+                }
+                return new Value { Kind = Kind.String, Text = sb.ToString() };
+            }
+
+            private static Value ParseNumber(string s, ref int i)
+            {
+                var start = i;
+                if (i < s.Length && s[i] == '-') i++;
+                bool intPart = false, fracPart = false, expPart = false;
+                while (i < s.Length)
+                {
+                    char c = s[i];
+                    if ((c >= '0' && c <= '9'))
+                    {
+                        intPart = true;
+                        i++;
+                    }
+                    else if (c == '.' && intPart && !fracPart)
+                    {
+                        fracPart = true;
+                        i++;
+                    }
+                    else if ((c == 'e' || c == 'E') && !expPart)
+                    {
+                        expPart = true;
+                        i++;
+                    }
+                    else if ((c == '+' || c == '-') && expPart)
+                    {
+                        i++;
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+                string token = s.Substring(start, i - start);
+                if (intPart == false)
+                    throw new FormatException("JSON: invalid number token '" + token + "'.");
+                double d;
+                if (!double.TryParse(token, System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture, out d))
+                    throw new FormatException("JSON: invalid number token '" + token + "'.");
+                return new Value { Kind = Kind.Number, Num = d };
+            }
+
+            private static Value ParseBool(string s, ref int i)
+            {
+                if (i + 4 <= s.Length && s.Substring(i, 4) == "true")
+                {
+                    i += 4;
+                    return new Value { Kind = Kind.Bool, Bool = true };
+                }
+                if (i + 5 <= s.Length && s.Substring(i, 5) == "false")
+                {
+                    i += 5;
+                    return new Value { Kind = Kind.Bool, Bool = false };
+                }
+                throw new FormatException("JSON: invalid literal.");
+            }
+
+            private static Value ParseNull(string s, ref int i)
+            {
+                if (i + 4 <= s.Length && s.Substring(i, 4) == "null")
+                {
+                    i += 4;
+                    return new Value { Kind = Kind.Null };
+                }
+                throw new FormatException("JSON: invalid literal.");
+            }
         }
     }
 }

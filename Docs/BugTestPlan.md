@@ -15,6 +15,8 @@ cd /home/jonames/Projects/OpenKSP-Unity/Code
 - [ ] `dotnet build -warnaserror` on `OpenKSP.Core` and `OpenKSP.Core.Tests` → exit 0, **zero warnings** (warnings are failures).
 - [ ] `dotnet build` on `OpenKSP.sln` clean.
 - [ ] `grep -rn UnityEngine Code/OpenKSP.Core/` must return nothing.
+- [ ] `OpenKSP.Core` targets **`netstandard2.0`** (verify `<TargetFramework>` in `Code/OpenKSP.Core/OpenKSP.Core.csproj`). A net8.0 DLL carries a `System.Runtime, Version=8.0.0.0` typeref that Unity's Mono cannot resolve — that was the original `TypeLoadException` in `SolarSystemStub.Awake`.
+- [ ] The shipped `Assets/Plugins/OpenKSP/OpenKSP.Core.dll` is the rebuilt netstandard2.0 build (no .NET 8 assemblies referenced).
 
 ## 2. Test suite execution (the doc's T1–T10)
 
@@ -54,10 +56,18 @@ All 10 must be present in the suite (test names discoverable via `dotnet test -t
 - [ ] `planets.json` exists with required fields `id,name,mass,radius,mu` (validate with `python3 -c "import json; json.load(open(...))"` + field check).
 - [ ] Core project must not be referenced by Unity MonoBehaviours in a way that breaks the pure library (separate folder is fine — Unity will resolve via asmdef or project reference in the Unity project; flag if an asmdef is missing — Unity project can define one later).
 
-## 6. Report format (final deliverable)
+## 6. Unity-Mono JIT gate (the original `TypeLoadException` — verify it's gone)
+
+The `-batchmode` compile does **not** JIT `Awake`, so it cannot prove the original crash is fixed. The definitive check:
+
+- [ ] Build a small **net48** harness (a console app referencing `OpenKSP.Core.dll`) that calls `CBodyLoader.Load("Assets/StreamingAssets/Planets/planets.json")` — this path reads `System.IO.File`, exactly what `SolarSystemStub.Awake` does.
+- [ ] Run it with **Unity's bundled Mono** (`…/Editor/Data/MonoBleedingEdge/bin-linux64/mono`, 6.13.0) — exit 0, no `TypeLoadException`, and the loaded bodies have correct `mu` values.
+- [ ] Headless Unity `-batchmode -quit` compile exits 0 (secondary check only).
+
+## 7. Report format (final deliverable)
 
 ```
-PASS/FAIL summary per item (1–6)
+PASS/FAIL summary per item (1–7)
 - Test results: 10/10 expected, list any failures with the failing test name + measured vs required value
 - Build: warning count (must be 0)
 - Hygiene greps: any hits listed

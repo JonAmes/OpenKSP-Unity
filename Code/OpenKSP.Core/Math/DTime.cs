@@ -20,7 +20,7 @@ public readonly struct DTime : IEquatable<DTime>
     public static bool operator ==(DTime left, DTime right) => left.Equals(right);
     public static bool operator !=(DTime left, DTime right) => !left.Equals(right);
 
-    public override int GetHashCode() => HashCode.Combine(TimeSeconds);
+    public override int GetHashCode() => Hash32.Single(TimeSeconds);
 
     public override string ToString() => $"{TimeSeconds:F6}s";
     }
