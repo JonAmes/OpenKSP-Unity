@@ -3,6 +3,7 @@ using OpenKSP.Core.Math;
 using OpenKSP.Core.Orbit;
 using System;
 using System.Collections.Generic;
+using System.IO;
 
 namespace OpenKSP.Core.Celestial {
 
@@ -24,6 +25,7 @@ public sealed class WorldState
     private readonly string[] _name;
     private readonly double[] _radius;
     private readonly double[] _mu;
+    private readonly int[] _parentIndex;
     private D3[] _pos;
     private DVector[] _vel;
     private double _simTimeSeconds;
@@ -54,6 +56,11 @@ public sealed class WorldState
     public D3 Position(int index) => _pos[index];
     public DVector Velocity(int index) => _vel[index];
 
+    // Set the live position of body `index` (hot-path write seam, used by the
+    // §3 read-back fold: the canonical state absorbs the proxy's read-back value).
+    // No allocation; mirrors the allocation-free Position/Velocity accessors.
+    public void SetPosition(int index, D3 pos) => _pos[index] = pos;
+
     // Construct from immutable body list (positions/velocities/mu baked in).
     public WorldState(IEnumerable<CBody> bodies)
     {
@@ -77,6 +84,88 @@ public sealed class WorldState
         }
         _propagator = new OrbitPropagator(Bodies);
         _simTimeSeconds = 0.0;
+        _parentIndex = ResolveParentIndices(list);
+    }
+
+    // Structural parent map: -1 for root bodies, else the index of the
+    // parent in the same body list. Computed once in the constructor —
+    // the sim never mutates it, and ParentIndex(i) is O(1) and alloc-free.
+    // Rejects unknown parents, self-parents, and cycles (a hierarchy must
+    // be a forest rooted at null-parent bodies).
+    private static int[] ResolveParentIndices(List<CBody> bodies)
+    {
+        var n = bodies.Count;
+        var idToIndex = new Dictionary<string, int>();
+        for (var i = 0; i < n; i++)
+        {
+            idToIndex.Add(bodies[i].Id, i);
+        }
+        var parentIndex = new int[n];
+        for (var i = 0; i < n; i++)
+        {
+            var pid = bodies[i].ParentId;
+            if (pid == null)
+            {
+                parentIndex[i] = -1;
+                continue;
+            }
+            if (!idToIndex.TryGetValue(pid, out var parent))
+            {
+                throw new InvalidDataException($"Body '{bodies[i].Id}' has unknown parent '{pid}'.");
+            }
+            if (parent == i)
+            {
+                throw new InvalidDataException($"Body '{bodies[i].Id}' cannot be its own parent.");
+            }
+            parentIndex[i] = parent;
+        }
+        RejectCycles(parentIndex, bodies);
+        return parentIndex;
+    }
+
+    // 3-color walk over the parent chains; any revisit is a cycle.
+    private static void RejectCycles(int[] parentIndex, List<CBody> bodies)
+    {
+        // 0 = unvisited, 1 = on current chain, 2 = fully resolved
+        var state = new int[parentIndex.Length];
+        for (var i = 0; i < parentIndex.Length; i++)
+        {
+            if (state[i] != 0) continue;
+            var cur = i;
+            while (cur != -1)
+            {
+                if (state[cur] == 1)
+                {
+                    throw new InvalidDataException($"Parent hierarchy contains a cycle involving '{bodies[cur].Id}'.");
+                }
+                if (state[cur] == 2) break;
+                state[cur] = 1;
+                cur = parentIndex[cur];
+            }
+            for (cur = i; cur != -1; cur = parentIndex[cur]) state[cur] = 2;
+        }
+    }
+
+    // Parent index of body i; -1 for root bodies. O(1), no allocations.
+    public int ParentIndex(int index) => _parentIndex[index];
+
+    // Parent-relative orbital elements for body i (the HUD/planning seam, design §6).
+    // Focus = the parent body when ParentIndex(i) >= 0, else the barycenter/origin
+    // (D3.Zero) for a root body. Relative state r = pos[i] - pos[focus],
+    // v = vel[i] - vel[focus]; mu = the focus body's GM (for a root body the body's
+    // own GM — an about-origin, degenerate case per §6 open question). No allocations
+    // beyond the returned structs; called at most per HUD refresh, never inside Step().
+    public OrbitalElements KeplerElements(int index)
+    {
+        if (index < 0 || index >= _mu.Length)
+            throw new ArgumentOutOfRangeException(nameof(index), "body index out of range.");
+        var focus = _parentIndex[index];
+        D3 focusPos = focus >= 0 ? _pos[focus] : D3.Zero;
+        DVector focusVel = focus >= 0 ? _vel[focus] : DVector.Zero;
+        D3 r = _pos[index] - focusPos;
+        DVector v = _vel[index] - focusVel;
+        double mu = focus >= 0 ? _mu[focus] : _mu[index];
+        return KeplerianElements.FromState(r, v, mu);
     }
 
     // One fixed-timestep RK4 advance of every body; sim time advances by dt.

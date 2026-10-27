@@ -72,18 +72,26 @@ public readonly struct CBody : IEquatable<CBody>
     // Radius in m (per §6 schema; used by later phases).
     public readonly double Radius;
 
+    // Parent body id; null for root bodies (Phase 2 hierarchy, §schema "parent").
+    // Structural: set once at load, never mutated by the sim.
+    public readonly string? ParentId;
+
     // Mass in kg, derived from mu (mu / G).
     public double Mass => Mu3PerS2 / 6.67430e-11;
 
     public CBody(string id, string name, double mu)
-        : this(id, name, D3.Zero, DVector.Zero, 0.0, mu)
+        : this(id, name, D3.Zero, DVector.Zero, 0.0, mu, null)
     {
     }
     public CBody(string id, string name, DVector pos, DVector vel, double radius, double mu)
-        : this(id, name, new D3(pos.X, pos.Y, pos.Z), vel, radius, mu)
+        : this(id, name, new D3(pos.X, pos.Y, pos.Z), vel, radius, mu, null)
     {
     }
     public CBody(string id, string name, D3 pos, DVector vel, double radius, double mu)
+        : this(id, name, pos, vel, radius, mu, null)
+    {
+    }
+    public CBody(string id, string name, D3 pos, DVector vel, double radius, double mu, string? parentId)
     {
         Id = id;
         Name = name;
@@ -91,6 +99,7 @@ public readonly struct CBody : IEquatable<CBody>
         Velocity = vel;
         Radius = radius;
         Mu3PerS2 = mu;
+        ParentId = parentId;
     }
 
     public override bool Equals(object? o) => o is CBody b && Id == b.Id;

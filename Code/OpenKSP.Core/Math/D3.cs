@@ -94,20 +94,23 @@ public struct F3 : IEquatable<F3>
 // Scales between local F3 and global D3 coordinate spaces.
 public static class Coordinates
 {
-    // Scales from local F3 to global D3 space
-    public static readonly double Scale = 1.0; // Will be set from origin-based mapping
-    
+    // Scale between local F3 and global D3. Identity (1.0): FloatingOrigin is
+    // the only local↔global offset, and the residual bound (T10) is already
+    // measured against this identity mapping.
+    public static readonly double Scale = 1.0;
+
     // Convert local float proxy state back to global double position.
     // <param name="local">Local frame value in F3</param>
-    // <param name="originOrigin">Global offset point</param>
+    // <param name="originOrigin">Global offset point (currently unused; the
+    // origin offset is applied by FloatingOrigin, not here)</param>
     // <returns>Global D3 position</returns>
     public static D3 ToFloat(F3 local, D3 originOrigin)
     {
-        // Simple identity mapping for now - unit conversion is scale-dependent
+        // Identity scale mapping — FloatingOrigin carries the offset.
         return new D3(
-            (double)local.X * Scale + 0.0,
-            (double)local.Y * Scale + 0.0,
-            (double)local.Z * Scale + 0.0
+            (double)local.X * Scale,
+            (double)local.Y * Scale,
+            (double)local.Z * Scale
         );
     }
 

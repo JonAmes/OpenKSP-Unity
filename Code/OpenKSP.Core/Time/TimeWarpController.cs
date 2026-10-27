@@ -23,7 +23,8 @@ namespace OpenKSP.Core.Time
             _warpRate = warpRate;
         }
 
-        // Change the warp rate; applies at the boundary (no mid-step effect).
+        // Change the warp rate. Takes effect at the next step boundary —
+        // no mid-step effect (a step already started keeps its old rate).
         public void SetWarpRate(double warpRate)
         {
             if (warpRate < 0)

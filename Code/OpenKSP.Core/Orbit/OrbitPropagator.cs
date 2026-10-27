@@ -1,7 +1,6 @@
 using OpenKSP.Core.Celestial;
 using OpenKSP.Core.Math;
 using System;
-using System.Collections.Generic;
 
 namespace OpenKSP.Core.Orbit
 {
@@ -17,14 +16,12 @@ namespace OpenKSP.Core.Orbit
         private readonly DVector[] _k1Vel, _k2Vel, _k3Vel, _k4Vel;
         private readonly D3[] _pScratch;   // reused full-position scratch
 
-        public OrbitPropagator(IEnumerable<CBody> bodies)
+        public OrbitPropagator(CBody[] bodies)
         {
-            var n = 0;
-            foreach (var _ in bodies) n++;
-            _n = n;
-            _k1Pos = new DVector[n]; _k2Pos = new DVector[n]; _k3Pos = new DVector[n]; _k4Pos = new DVector[n];
-            _k1Vel = new DVector[n]; _k2Vel = new DVector[n]; _k3Vel = new DVector[n]; _k4Vel = new DVector[n];
-            _pScratch = new D3[n];
+            _n = bodies.Length;
+            _k1Pos = new DVector[_n]; _k2Pos = new DVector[_n]; _k3Pos = new DVector[_n]; _k4Pos = new DVector[_n];
+            _k1Vel = new DVector[_n]; _k2Vel = new DVector[_n]; _k3Vel = new DVector[_n]; _k4Vel = new DVector[_n];
+            _pScratch = new D3[_n];
         }
 
         // One RK4 step. pos/vel updated in place. mu: per-body GM (m^3/s^2);

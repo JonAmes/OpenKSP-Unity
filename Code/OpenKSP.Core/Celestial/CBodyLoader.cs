@@ -11,7 +11,8 @@ namespace OpenKSP.Core.Celestial
     //   { "units": {...},
     //     "bodies": [ { "id", "name", "mass", "radius", "mu", "parent" } ] }
     // Required: id, name, mass, radius, mu (GM, m³/s²).
-    // Optional: parent (hierarchy, Phase 2).
+    // Optional: parent — id of the body this one revolves about;
+    // must reference a body in the same file, may not be itself (Phase 2).
     //
     // Hand-rolled minimal JSON parser (no System.Text.Json): Unity's Mono runtime
     // does not ship System.Text.Json, and the netstandard2.0 target must stay free
@@ -62,19 +63,31 @@ namespace OpenKSP.Core.Celestial
                 throw new InvalidDataException("planets.json: 'bodies' must be a JSON array.");
 
             var list = new List<CBody>(bodies.ItemCount);
+            var seenIds = new HashSet<string>();
             for (var s = 0; s < bodies.ItemCount; s++)
             {
                 var el = bodies.Element(s);
                 if (el.Kind != Json.Kind.Object)
                     throw new InvalidDataException("planets.json: each body must be a JSON object.");
                 var id = ReadRequiredString(el, "id");
+                if (!seenIds.Add(id))
+                    throw new InvalidDataException($"planets.json: duplicate body id '{id}'.");
                 var name = ReadRequiredString(el, "name");
                 ReadRequiredDouble(el, "mass");
                 var radius = ReadRequiredDouble(el, "radius");
                 var mu = ReadRequiredDouble(el, "mu");
 
-                list.Add(new CBody(id, name, D3.Zero, DVector.Zero, radius, mu));
-                // Optional 'parent' is accepted but unused in Phase 1 (Phase 2 hierarchy).
+                string? parentId = null;
+                if (el.TryGetMember("parent", out var parentEl) && parentEl.Kind != Json.Kind.Null)
+                {
+                    if (parentEl.Kind != Json.Kind.String)
+                        throw new InvalidDataException($"planets.json: 'parent' must be a string or null for body '{id}'.");
+                    parentId = parentEl.Text!;
+                }
+
+                list.Add(new CBody(id, name, D3.Zero, DVector.Zero, radius, mu, parentId));
+                // Hierarchy validation (unknown parent, self-parent) is done
+                // against the full set in WorldState.ResolveParentIndices.
             }
             return list;
         }

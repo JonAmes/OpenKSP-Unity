@@ -21,11 +21,16 @@ public class FloatingOriginSystem : MonoBehaviour
     public const double FixedDelta = 1.0 / 1200.0;
 
     private WorldState _world;
+    private WorldState _reference;   // pure-double reference integrator (HUD drift metric)
     private TimeWarpController _warp;
     private FloatingOrigin _origin;
 
     // Canonical state (read live per-body via allocation-free accessors).
     public WorldState World => _world;
+    // Pure-double reference world: bit-identical initial state, never folded from
+    // the Unity proxy, advanced in lockstep solely to feed the drift-via-§2.3 metric.
+    // The sim's canonical state remains _world — Core stays single authoritative.
+    public WorldState Reference => _reference;
     public FloatingOrigin Origin => _origin;
     public double WarpRate => _warp.WarpRate;
     public int BodyCount => _world.BodyCount;
@@ -48,7 +53,12 @@ public class FloatingOriginSystem : MonoBehaviour
     {
         var steps = _warp.Accumulate(realDt);
         for (var i = 0; i < steps; i++)
+        {
             _world.Step(FixedDelta);
+            // Advance the pure-double reference in exact lockstep (never folded
+            // from the Unity proxy) so the drift metric is measured against it.
+            _reference.Step(FixedDelta);
+        }
         return steps;
     }
 
@@ -79,6 +89,11 @@ public class FloatingOriginSystem : MonoBehaviour
         bodies[2] = MoonAroundEarth(list[2], bodies[1]);
 
         _world = new WorldState(bodies);
+
+        // Pure-double reference integrator: a fresh, bit-identical copy of the
+        // initial state (same `bodies` array), advanced in lockstep and never
+        // folded from the proxy — the drift metric in §2.3 is measured against it.
+        _reference = new WorldState(bodies);
 
         // Pin the floating origin on the sun (sun is at the origin); the local
         // (float) zone is one sun radius — bodies inside it are IN.

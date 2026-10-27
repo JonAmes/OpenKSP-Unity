@@ -1,4 +1,3 @@
-using System.Linq;
 using OpenKSP.Core.Celestial;
 using OpenKSP.Core.Math;
 using System;
