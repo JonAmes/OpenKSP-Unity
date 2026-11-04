@@ -40,6 +40,12 @@ public class MfdDisplay : MonoBehaviour
     // Injected once by the sim host (or a scene setup script).
     public void SetWorld(WorldState world) { _world = world; }
 
+    // Refresh cadence: the readout is a numeric panel, not a game object;
+    // 10 Hz matches KSP's MFD update feel and bounds the per-tick string
+    // allocations from Run/Render to ~10/s instead of one per frame.
+    [SerializeField] private float _refreshInterval = 0.1f;
+    private float _nextTickTime;
+
     private void Awake()
     {
         _text = GetComponent<Text>();
@@ -49,6 +55,9 @@ public class MfdDisplay : MonoBehaviour
     {
         if (_program == null)
             return;
+        if (Time.unscaledTime < _nextTickTime)
+            return;
+        _nextTickTime = Time.unscaledTime + _refreshInterval;
         _program.Run(this, _world, ref _state);
         string[] lines = _program.Render(_state);
         string joined = JoinLines(lines);
