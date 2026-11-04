@@ -410,5 +410,20 @@ namespace OpenKSP.Core.Tests
                 "GlTF: unexpected end of data at offset 20",
                 err3.Message);
         }
+
+        // Review hardening: pathological JSON nesting must fail with a
+        // deterministic FormatException, never a StackOverflow
+        // (JsonMini.MaxDepth = 256).
+        [Fact]
+        public void GlTFDeepJsonNestingFailsDeterministically()
+        {
+            var sb = new StringBuilder("{\"a\":");
+            for (int i = 0; i < 300; i++) sb.Append('[');
+            for (int i = 0; i < 300; i++) sb.Append(']');
+            sb.Append('}');
+            var ex = Assert.Throws<FormatException>(
+                () => GlTF.Decode(System.Text.Encoding.UTF8.GetBytes(sb.ToString())));
+            Assert.Contains("JSON nesting deeper than 256", ex.Message);
+        }
     }
 }

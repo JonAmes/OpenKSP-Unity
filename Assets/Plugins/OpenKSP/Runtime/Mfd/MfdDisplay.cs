@@ -4,10 +4,11 @@ using UnityEngine.UI;
 
 // =============================================================================
 // MfdDisplay — a uGUI text element bound to one MfdProgram (step-03 Task 6).
-// Awake caches the Text component (no Find/GetComponent in Update). Each
-// frame: Program.Run(display, world, ref state) then Program.Render(state);
-// the lines are joined into the label. Only the final assignment into the
-// Text component allocates; component references are cached once.
+// Awake caches the Text component (no Find/GetComponent in Update). At the
+// refresh cadence (10 Hz, see _refreshInterval): Program.Run(display, world,
+// ref state) then Program.Render(state); the lines are joined into the label.
+// Only the final assignment into the Text component allocates; component
+// references are cached once.
 // The WorldState is injected by the sim host (SetWorld); while null the
 // display idles and shows the program name.
 // =============================================================================

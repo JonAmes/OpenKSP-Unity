@@ -406,18 +406,33 @@ namespace OpenKSP.Core.Modding
             }
         }
 
+        // Depth guard: a hostile document with pathological nesting would
+        // StackOverflow the recursive parser, and StackOverflow kills the
+        // process — fail deterministically instead.
+        private const int MaxDepth = 256;
+        private int _depth;
+
         private Val ParseValue()
         {
             if (_p >= _s.Length)
                 throw Err("unexpected end of JSON");
-            char c = _s[_p];
-            if (c == '{') return ParseObject();
-            if (c == '[') return ParseArray();
-            if (c == '"') return ParseString();
-            if (c == 't' || c == 'f') return ParseLiteral();
-            if (c == 'n') return ParseLiteral();
-            if (c == '-' || (c >= '0' && c <= '9')) return ParseNumber();
-            throw Err("unexpected token '" + c + "'");
+            if (++_depth > MaxDepth)
+                throw Err("JSON nesting deeper than " + MaxDepth);
+            try
+            {
+                char c = _s[_p];
+                if (c == '{') return ParseObject();
+                if (c == '[') return ParseArray();
+                if (c == '"') return ParseString();
+                if (c == 't' || c == 'f') return ParseLiteral();
+                if (c == 'n') return ParseLiteral();
+                if (c == '-' || (c >= '0' && c <= '9')) return ParseNumber();
+                throw Err("unexpected token '" + c + "'");
+            }
+            finally
+            {
+                _depth--;
+            }
         }
 
         private Val ParseObject()

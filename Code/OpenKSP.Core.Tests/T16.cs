@@ -272,5 +272,31 @@ namespace OpenKSP.Core.Tests
             var ex = Assert.Throws<FormatException>(() => Mu.Read(cut));
             Assert.Equal("Mu: unexpected end of data at offset 35", ex.Message);
         }
+
+        // Review hardening: hostile child nesting must fail with a
+        // deterministic FormatException, never a process-killing
+        // StackOverflow (Mu.MaxTreeDepth = 256).
+        [Fact]
+        public void DeepChildNestingFailsDeterministically()
+        {
+            var b = new Builder();
+            b.I(76543);
+            b.I(2);
+            b.S("deep");
+            b.S("root");
+            b.F(0f); b.F(0f); b.F(0f);
+            b.F(0f); b.F(0f); b.F(0f); b.F(1f);
+            b.F(1f); b.F(1f); b.F(1f);
+            for (int level = 0; level < 300; level++)   // > MaxTreeDepth
+            {
+                b.I(MuEntry.ChildTransformStart);
+                b.S("c");
+                b.F(0f); b.F(0f); b.F(0f);
+                b.F(0f); b.F(0f); b.F(0f); b.F(1f);
+                b.F(1f); b.F(1f); b.F(1f);
+            }
+            var ex = Assert.Throws<FormatException>(() => Mu.Read(b.Bytes.ToArray()));
+            Assert.Equal("Mu: transform nesting deeper than 256", ex.Message);
+        }
     }
 }

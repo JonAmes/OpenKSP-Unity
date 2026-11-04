@@ -421,13 +421,17 @@ namespace OpenKSP.Core.Modding
                     " (expected 0.." + MuEntry.MaxVersion + ") at offset 4");
 
             var file = new MuFile { Version = version, Name = r.ReadString() };
-            file.Root = ReadObject(r, file, version);
+            file.Root = ReadObject(r, file, version, 0);
             return file;
         }
 
         // mu.py MuObject.read: transform, then entry loop; unknown entry codes
         // are ignored (no payload), the loop ends on CT_END or end of data.
-        private static MuObject ReadObject(MuBin r, MuFile file, int version)
+        // MaxTreeDepth bounds recursion: hostile nesting must fail with
+        // FormatException, never a process-killing StackOverflow.
+        private const int MaxTreeDepth = 256;
+
+        private static MuObject ReadObject(MuBin r, MuFile file, int version, int depth)
         {
             var obj = new MuObject();
             obj.Transform = ReadTransform(r);
@@ -439,7 +443,12 @@ namespace OpenKSP.Core.Modding
                 if (entry == MuEntry.ChildTransformEnd)
                     break;
                 else if (entry == MuEntry.ChildTransformStart)
-                    obj.Children.Add(ReadObject(r, file, version));
+                {
+                    if (depth >= MaxTreeDepth)
+                        throw new FormatException(
+                            "Mu: transform nesting deeper than " + MaxTreeDepth);
+                    obj.Children.Add(ReadObject(r, file, version, depth + 1));
+                }
                 else if (entry == MuEntry.TagAndLayer)
                     obj.TagLayer = ReadTagLayer(r);
                 else if (entry == MuEntry.MeshCollider || entry == MuEntry.MeshCollider2)
