@@ -117,3 +117,7 @@ InitTestScene*.unity*
 AGENTS.md
 /Docs/agents/
 /Docs/steps/
+
+# dotnet build outputs (Code/OpenKSP.Core, Code/OpenKSP.Core.Tests)
+Code/**/[Bb]in/
+Code/**/[Oo]bj/
